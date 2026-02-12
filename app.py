@@ -1,40 +1,72 @@
 import streamlit as st
 import pickle
 import pandas as pd
+import os
+
+# -----------------------------
+# Safe File Loading
+# -----------------------------
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+sentiment_model_path = os.path.join(BASE_DIR, "sentiment_model.pkl")
+tfidf_path = os.path.join(BASE_DIR, "tfidf_vectorizer.pkl")
+label_encoder_path = os.path.join(BASE_DIR, "label_encoder.pkl")
+condition_model_path = os.path.join(BASE_DIR, "condition_model.pkl")
 
 # Load models
-model = pickle.load(open("sentiment_model.pkl", "rb"))
-tfidf = pickle.load(open("tfidf_vectorizer.pkl", "rb"))
-label_encoder = pickle.load(open("label_encoder.pkl", "rb"))
+sentiment_model = pickle.load(open(sentiment_model_path, "rb"))
+tfidf = pickle.load(open(tfidf_path, "rb"))
+label_encoder = pickle.load(open(label_encoder_path, "rb"))
+condition_model = pickle.load(open(condition_model_path, "rb"))
 
-# Page config
-st.set_page_config(page_title="Drug Review Sentiment Analysis", layout="wide")
+# -----------------------------
+# Streamlit UI
+# -----------------------------
 
-st.title("Drug Review Sentiment Analysis App")
+st.set_page_config(page_title="Drug Review Analysis", layout="wide")
 
-# Input box
-user_input = st.text_area("Enter your review text here:")
+st.title("Patient Condition Classification using Drug Reviews")
+st.write("Enter a drug review to predict sentiment and possible medical condition.")
 
-label_map = {0: "Negative", 1: "Neutral", 2: "Positive"}
+user_input = st.text_area("Enter Review Text:", height=250)
 
-if st.button("Predict Sentiment"):
+sentiment_labels = {0: "Negative", 1: "Neutral", 2: "Positive"}
+
+if st.button("Predict"):
 
     if user_input.strip() == "":
         st.warning("Please enter some text.")
     else:
+        # Transform text
         vector = tfidf.transform([user_input])
-        prediction = model.predict(vector)[0]
-        probability = model.predict_proba(vector)[0]
 
-        sentiment = label_map[prediction]
+        # Sentiment prediction
+        sentiment_pred = sentiment_model.predict(vector)[0]
+        sentiment_prob = sentiment_model.predict_proba(vector)[0]
+        sentiment_text = sentiment_labels[sentiment_pred]
 
-        st.subheader(f"Predicted Sentiment: {sentiment}")
+        # Condition prediction
+        condition_pred = condition_model.predict(vector)[0]
+        condition_label = label_encoder.inverse_transform([condition_pred])[0]
 
-        results = pd.DataFrame({
+        # -----------------------------
+        # Display Results
+        # -----------------------------
+
+        st.subheader("Prediction Results")
+
+        st.success(f"Predicted Sentiment: {sentiment_text}")
+        st.info(f"Most Likely Condition: {condition_label}")
+
+        result_table = pd.DataFrame({
             "Sentiment": ["Negative", "Neutral", "Positive"],
-            "Probability (%)": [round(probability[0]*100,2),
-                                round(probability[1]*100,2),
-                                round(probability[2]*100,2)]
+            "Probability (%)": [
+                round(sentiment_prob[0] * 100, 2),
+                round(sentiment_prob[1] * 100, 2),
+                round(sentiment_prob[2] * 100, 2)
+            ]
         })
 
-        st.table(results)
+        st.subheader("Sentiment Probability Breakdown")
+        st.table(result_table)
